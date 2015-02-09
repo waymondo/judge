@@ -2,6 +2,8 @@
 
 [![Build status](https://secure.travis-ci.org/joecorcoran/judge.png?branch=master)](http://travis-ci.org/joecorcoran/judge)
 
+Looking for a nice open source project to contribute to? **[Maintainers needed!](https://github.com/joecorcoran/judge/issues/47)**
+
 Judge allows easy client side form validation for Rails by porting many `ActiveModel::Validation` features to JavaScript. The most common validations work through JSON strings stored within HTML5 data attributes and are executed purely on the client side. Wherever you need to, Judge provides a simple interface for AJAX validations too.
 
 ## Rationale
@@ -310,7 +312,13 @@ Fork this repo and submit a pull request with an explanation of the changes you'
 
 Run tests (the JavaScript tests require [PhantomJS](http://phantomjs.org/)):
 ```bash
-$ rake
+$ bundle exec rake
+```
+
+To test against all supported minor versions of Rails:
+```bash
+$ bundle exec rake appraisal:install
+$ bundle exec rake appraisal
 ```
 
 ## Credit

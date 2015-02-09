@@ -1,4 +1,4 @@
-// Judge 2.0.4
+// Judge 2.0.5
 // (c) 2011-2013 Joe Corcoran
 // http://raw.github.com/joecorcoran/judge/master/LICENSE.txt
 
@@ -14,7 +14,7 @@
   var judge = root.judge = {},
       _     = root._;
 
-  judge.VERSION = '2.0.4';
+  judge.VERSION = '2.0.5';
 
   // Trying to be a bit more descriptive than the basic error types allow.
   var DependencyError = function(message) {
@@ -136,6 +136,11 @@
         return $1.toUpperCase().replace('_','');
       });
     };
+    originalValue = function(el) {
+      var validations = JSON.parse(el.getAttribute('data-validate'));
+      var validation = _.filter(validations, function (validation) { return validation.kind === "uniqueness"})[0];
+      return validation.original_value;
+    };
 
   // Build the URL necessary to send a GET request to the mounted validations
   // controller to check the validity of the given form element.
@@ -147,6 +152,9 @@
           'value'    : el.value,
           'kind'     : kind
         };
+        if (kind === 'uniqueness') {
+          params['original_value'] = originalValue(el);
+        }
     return path + queryString(params);
   };
 
@@ -168,20 +176,22 @@
   // Backbone.js (c) 2010-2012 Jeremy Ashkenas, DocumentCloud Inc.
   // http://backbonejs.org
   var Dispatcher = judge.Dispatcher = {
-    on: function(event, callback, scope) {
+    on: function(eventName, callback, scope) {
       if (!_.isFunction(callback)) return this;
       this._events || (this._events = {});
-      var events = this._events[event] || (this._events[event] = []);
+      var events = this._events[eventName] || (this._events[eventName] = []);
       events.push({ callback: callback, scope: scope || this });
-      this.trigger('bind');
+      if (eventName !== 'bind') {
+        this.trigger('bind', eventName);
+      }
       return this;
     },
-    trigger: function(event) {
+    trigger: function(eventName) {
       if (!this._events) return this;
-      var args      = _.rest(arguments),
-          events = this._events[event] || (this._events[event] = []);
-      _.each(events, function(event) {
-        event.callback.apply(event.scope, args);
+      var args   = _.rest(arguments),
+          events = this._events[eventName] || (this._events[eventName] = []);
+      _.each(events, function(eventObj) {
+        eventObj.callback.apply(eventObj.scope, args);
       });
       return this;
     }
@@ -199,22 +209,28 @@
         var method     = _.bind(judge.eachValidators[av.kind], this.element),
             validation = method(av.options, av.messages);
         validation.on('close', this.tryClose, this);
-        this.on('bind', this.tryClose, this);
         this.validations.push(validation);
       }
     }, this);
-    this.tryClose.call(this);
+
+    this.on('bind', this.tryClose, this);
   };
+
   _.extend(ValidationQueue.prototype, Dispatcher, {
-    tryClose: function() {
+    tryClose: function(eventName) {
       var report = _.reduce(this.validations, function(obj, validation) {
         obj.statuses = _.union(obj.statuses, [validation.status()]);
         obj.messages = _.union(obj.messages, _.compact(validation.messages));
         return obj;
       }, { statuses: [], messages: [] }, this);
+
       if (!_.contains(report.statuses, 'pending')) {
         var status = _.contains(report.statuses, 'invalid') ? 'invalid' : 'valid';
+
+        // handle single callback
         this.trigger('close', this.element, status, report.messages);
+
+        // handle named callbacks
         this.trigger(status, this.element, report.messages);
       }
     }
@@ -385,8 +401,8 @@
     if (_.isFunction(callbacks)) {
       queue.on('close', callbacks);
     } else if (isCallbacksObj(callbacks)) {
-      queue.on('valid', callbacks.valid);
-      queue.on('invalid', callbacks.invalid);
+      queue.on('valid', _.once(callbacks.valid));
+      queue.on('invalid', _.once(callbacks.invalid));
     }
     return queue;
   };
